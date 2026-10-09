@@ -1,0 +1,8 @@
+/backup/
+/logs/
+/build/
+/sim/probe_build/
+/pc/finalize_logical_backup.py
+*.vvp
+__pycache__/
+*.py[cod]
