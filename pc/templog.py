@@ -69,7 +69,8 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def backup_card(port: serial.Serial, destination: Path, capacity: int) -> None:
+def backup_card(port: serial.Serial, destination: Path, capacity: int,
+                description: str = "Karte") -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_name(destination.name + ".partial")
     already = partial.stat().st_size if partial.exists() else 0
@@ -111,7 +112,7 @@ def backup_card(port: serial.Serial, destination: Path, capacity: int) -> None:
     digest = sha256_file(destination)
     sidecar = destination.with_name(destination.name + ".sha256")
     sidecar.write_text(digest + "\n", encoding="ascii")
-    print(f"Karte vollständig gesichert: {destination}")
+    print(f"{description} gesichert: {destination}")
     print(f"SHA-256: {digest}")
 
 
@@ -130,6 +131,8 @@ def main() -> int:
                       help="Vollständiges, geprüftes Karten-Image aus 'backup'")
     backup = commands.add_parser("backup", help="Komplette Karte nur lesend sichern")
     backup.add_argument("image", type=Path)
+    backup_logs = commands.add_parser("backup-logs", help="Kontroll- und Messsektoren nur lesend sichern")
+    backup_logs.add_argument("image", type=Path)
     export = commands.add_parser("export", help="Aufzeichnung als CSV speichern")
     export.add_argument("csv", type=Path)
     args = parser.parse_args()
@@ -217,13 +220,21 @@ def main() -> int:
                     raise RuntimeError("SD-Fehler beim Löschen; Status prüfen.")
             raise TimeoutError("Löschen nicht bestätigt. Status erneut abfragen.")
 
-        if args.command == "backup":
-            status, capacity, _, _, _, _ = read_info(port)
+        if args.command in ("backup", "backup-logs"):
+            status, capacity, count, _, _, _ = read_info(port)
             if status == 2:
                 raise RuntimeError("Aufzeichnung läuft. Erst S2 drücken.")
             if capacity < 3:
                 raise RuntimeError("Keine geeignete SD-Karte erkannt.")
-            backup_card(port, args.image, capacity)
+            if args.command == "backup-logs":
+                if status != 1:
+                    raise RuntimeError("Logger-Karte ist nicht initialisiert.")
+                backup_card(port, args.image, count + 2, "Logger-Sektoren")
+                new_status, _, new_count, _, _, _ = read_info(port)
+                if new_status != 1 or new_count != count:
+                    raise RuntimeError("Aufzeichnung hat sich während der Sicherung geändert.")
+            else:
+                backup_card(port, args.image, capacity)
             return 0
 
         status, _, expected_count, _, _, _ = read_info(port)

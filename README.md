@@ -77,6 +77,16 @@ python pc\templog.py --port COM9 export logs\temperatur.csv
 python pc\templog.py --port COM9 clear
 ```
 
+Für eine zusätzliche Sicherung der beiden Kontrollsektoren und aller belegten
+Messsektoren (ohne den freien Rest der Karte):
+
+```powershell
+python pc\templog.py --port COM9 backup-logs logs\messungen.img
+```
+
+`backup-logs` ist nur lesend; das verkürzte Image eignet sich **nicht** als
+`init --backup-file`, weil `init` ein Image der gesamten Karte verlangt.
+
 Für Tests können die Befehle `start` und `stop` die beiden Taster über USB
 auslösen, zum Beispiel `python pc/templog.py --port COM9 start`.
 `clear` fragt nach einer Bestätigung; für Skripte gibt es `clear --yes`.
@@ -90,6 +100,19 @@ Thermoelement- und interne Vergleichsstellentemperatur sowie die drei
 Sensorfehler (offen, Kurzschluss gegen GND/VCC). Bei einem Sensorfehler bleibt
 das Feld `temperature_c` leer. Der Tang Nano 9K besitzt hier keine Echtzeituhr;
 absolute Datum/Uhrzeit werden nicht aufgezeichnet.
+
+Der Logger speichert auch bei einem Sensorfehler das komplette 32-Bit-Rohwort.
+Wenn `temperature_c` wegen eines Kurzschluss-Fehlerbits leer ist, können die
+Temperaturbits mit folgendem Befehl in die zusätzliche Spalte
+`temperature_candidate_c` übernommen werden. `recovery_status` kennzeichnet
+diese Werte als `fault_raw_candidate`. Sie sind **keine bestätigten Messwerte**;
+der MAX31855 hat die Sensormessung als fehlerhaft markiert. Bei einem offenen
+Fühler bleibt auch die Kandidatenspalte leer. Die Originalspalte wird nicht
+verändert.
+
+```powershell
+python pc\restore_csv.py logs\temperatur.csv logs\temperatur-kandidaten.csv
+```
 
 ## Technische Einzelheiten
 
